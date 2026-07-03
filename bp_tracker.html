@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BP Tracker</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: system-ui, -apple-system, sans-serif;
+    background: #f0f4f8;
+    color: #1a2332;
+    min-height: 100vh;
+    padding: 1rem;
+  }
+  h1 {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #1a2332;
+    margin-bottom: 1.2rem;
+    letter-spacing: -0.02em;
+  }
+  .card {
+    background: white;
+    border-radius: 12px;
+    padding: 1.2rem;
+    margin-bottom: 1rem;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  }
+  .card h2 {
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #6b7a8d;
+    margin-bottom: 1rem;
+  }
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 0.6rem;
+    margin-bottom: 0.7rem;
+  }
+  .form-group label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #6b7a8d;
+    margin-bottom: 0.3rem;
+  }
+  .form-group input, .form-group select, .form-group textarea {
+    width: 100%;
+    padding: 0.55rem 0.7rem;
+    border: 1.5px solid #dde3ea;
+    border-radius: 8px;
+    font-size: 1rem;
+    color: #1a2332;
+    background: #f8fafc;
+    transition: border-color 0.15s;
+    appearance: none;
+  }
+  .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+    outline: none;
+    border-color: #4a7fcb;
+    background: white;
+  }
+  .form-group textarea {
+    resize: vertical;
+    min-height: 60px;
+    font-size: 0.9rem;
+  }
+  .full-width { grid-column: 1 / -1; }
+  .btn {
+    background: #2c5f9e;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 0.65rem 1.4rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    width: 100%;
+    margin-top: 0.3rem;
+    transition: background 0.15s;
+  }
+  .btn:hover { background: #1e4a80; }
+  .btn:active { background: #163a64; }
+
+  /* status band */
+  .status-band {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.6rem 0.9rem;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 0.8rem;
+  }
+  .status-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .status-normal { background: #ecfdf5; color: #166534; }
+  .status-normal .status-dot { background: #22c55e; }
+  .status-elevated { background: #fffbeb; color: #92400e; }
+  .status-elevated .status-dot { background: #f59e0b; }
+  .status-high { background: #fef2f2; color: #991b1b; }
+  .status-high .status-dot { background: #ef4444; }
+  .status-crisis { background: #450a0a; color: #fca5a5; }
+  .status-crisis .status-dot { background: #dc2626; }
+
+  /* readings list */
+  .readings-list { display: flex; flex-direction: column; gap: 0.5rem; }
+  .reading-item {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: start;
+    padding: 0.7rem 0.9rem;
+    border-radius: 8px;
+    background: #f8fafc;
+    border-left: 4px solid #dde3ea;
+    gap: 0.5rem;
+  }
+  .reading-item.normal { border-left-color: #22c55e; }
+  .reading-item.elevated { border-left-color: #f59e0b; }
+  .reading-item.high { border-left-color: #ef4444; }
+  .reading-item.crisis { border-left-color: #991b1b; }
+  .reading-bp { font-size: 1.1rem; font-weight: 700; }
+  .reading-meta { font-size: 0.75rem; color: #6b7a8d; margin-top: 0.15rem; }
+  .reading-note { font-size: 0.8rem; color: #4a5568; margin-top: 0.3rem; font-style: italic; }
+  .reading-delete {
+    background: none;
+    border: none;
+    color: #cbd5e1;
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 0.1rem 0.3rem;
+    line-height: 1;
+    transition: color 0.15s;
+  }
+  .reading-delete:hover { color: #ef4444; }
+  .chart-wrap { position: relative; height: 220px; }
+  .empty { text-align: center; color: #94a3b8; font-size: 0.9rem; padding: 1.5rem 0; }
+
+  /* anxiety tags */
+  .anxiety-row { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+  .anxiety-btn {
+    padding: 0.35rem 0.8rem;
+    border-radius: 20px;
+    border: 1.5px solid #dde3ea;
+    background: white;
+    font-size: 0.8rem;
+    cursor: pointer;
+    color: #4a5568;
+    transition: all 0.15s;
+  }
+  .anxiety-btn.selected {
+    background: #2c5f9e;
+    border-color: #2c5f9e;
+    color: white;
+  }
+  .section-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #6b7a8d;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 0.5rem;
+    margin-top: 0.8rem;
+    display: block;
+  }
+</style>
+</head>
+<body>
+
+<h1>BP Tracker</h1>
+
+<div class="card">
+  <h2>Log a Reading</h2>
+  <div class="form-row">
+    <div class="form-group">
+      <label>Systolic (top)</label>
+      <input type="number" id="sys" placeholder="120" min="60" max="300">
+    </div>
+    <div class="form-group">
+      <label>Diastolic (bottom)</label>
+      <input type="number" id="dia" placeholder="80" min="40" max="200">
+    </div>
+    <div class="form-group">
+      <label>Pulse</label>
+      <input type="number" id="pulse" placeholder="70" min="30" max="220">
+    </div>
+  </div>
+  <div class="form-row">
+    <div class="form-group">
+      <label>Date</label>
+      <input type="date" id="date">
+    </div>
+    <div class="form-group">
+      <label>Time</label>
+      <input type="time" id="time">
+    </div>
+    <div class="form-group">
+      <label>Valium taken?</label>
+      <select id="meds">
+        <option value="no">No</option>
+        <option value="yes">Yes</option>
+      </select>
+    </div>
+  </div>
+  <span class="section-label">Anxiety level</span>
+  <div class="anxiety-row" id="anxietyBtns">
+    <button class="anxiety-btn" data-val="calm" onclick="selectAnxiety(this)">Calm</button>
+    <button class="anxiety-btn" data-val="mild" onclick="selectAnxiety(this)">Mild</button>
+    <button class="anxiety-btn" data-val="moderate" onclick="selectAnxiety(this)">Moderate</button>
+    <button class="anxiety-btn" data-val="high" onclick="selectAnxiety(this)">High</button>
+    <button class="anxiety-btn" data-val="panic" onclick="selectAnxiety(this)">Panic</button>
+  </div>
+  <div class="form-row" style="margin-top:0.8rem">
+    <div class="form-group full-width">
+      <label>Notes (optional)</label>
+      <textarea id="notes" placeholder="e.g. just walked the dogs, GP appointment stress, hot flush..."></textarea>
+    </div>
+  </div>
+  <button class="btn" onclick="addReading()">Save Reading</button>
+</div>
+
+<div class="card">
+  <h2>Trend</h2>
+  <div class="chart-wrap">
+    <canvas id="bpChart"></canvas>
+  </div>
+</div>
+
+<div class="card">
+  <h2>All Readings</h2>
+  <div class="readings-list" id="readingsList"></div>
+  <button class="btn" style="background:#166534;margin-top:1rem" onclick="exportCSV()">Export to Spreadsheet (CSV)</button>
+</div>
+
+<script>
+let readings = JSON.parse(localStorage.getItem('bp_readings') || '[]');
+let selectedAnxiety = '';
+let chart;
+
+function selectAnxiety(btn) {
+  document.querySelectorAll('.anxiety-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  selectedAnxiety = btn.dataset.val;
+}
+
+function getCategory(sys) {
+  if (sys < 120) return 'normal';
+  if (sys < 130) return 'elevated';
+  if (sys < 180) return 'high';
+  return 'crisis';
+}
+
+function getCategoryLabel(sys) {
+  if (sys < 120) return 'Normal';
+  if (sys < 130) return 'Elevated';
+  if (sys < 180) return 'High';
+  return 'Very High';
+}
+
+function getCategoryColor(sys) {
+  if (sys < 120) return '#22c55e';
+  if (sys < 130) return '#f59e0b';
+  if (sys < 180) return '#ef4444';
+  return '#991b1b';
+}
+
+function addReading() {
+  const sys = parseInt(document.getElementById('sys').value);
+  const dia = parseInt(document.getElementById('dia').value);
+  const pulse = document.getElementById('pulse').value;
+  const date = document.getElementById('date').value;
+  const time = document.getElementById('time').value;
+  const notes = document.getElementById('notes').value.trim();
+  const meds = document.getElementById('meds').value;
+
+  if (!sys || !dia || !date || !time) {
+    alert('Please fill in systolic, diastolic, date and time.');
+    return;
+  }
+
+  readings.push({ sys, dia, pulse: pulse || null, date, time, notes, meds, anxiety: selectedAnxiety });
+  readings.sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+  save();
+  clearForm();
+  render();
+}
+
+function deleteReading(i) {
+  if (confirm('Delete this reading?')) {
+    readings.splice(i, 1);
+    save();
+    render();
+  }
+}
+
+function save() {
+  localStorage.setItem('bp_readings', JSON.stringify(readings));
+}
+
+function clearForm() {
+  ['sys','dia','pulse','notes'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('meds').value = 'no';
+  document.querySelectorAll('.anxiety-btn').forEach(b => b.classList.remove('selected'));
+  selectedAnxiety = '';
+}
+
+function formatDate(d, t) {
+  const dt = new Date(d + 'T' + t);
+  return dt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) + ' ' + t;
+}
+
+function render() {
+  renderList();
+  renderChart();
+}
+
+function renderList() {
+  const el = document.getElementById('readingsList');
+  if (!readings.length) {
+    el.innerHTML = '<p class="empty">No readings yet - add your first one above.</p>';
+    return;
+  }
+  el.innerHTML = [...readings].reverse().map((r, ri) => {
+    const i = readings.length - 1 - ri;
+    const cat = getCategory(r.sys);
+    const label = getCategoryLabel(r.sys);
+    const anxStr = r.anxiety ? ` &middot; Anxiety: ${r.anxiety}` : '';
+    const medsStr = r.meds === 'yes' ? ' &middot; Valium taken' : '';
+    const pulseStr = r.pulse ? ` &middot; Pulse: ${r.pulse}` : '';
+    return `<div class="reading-item ${cat}">
+      <div>
+        <div class="reading-bp">${r.sys}/${r.dia} <span style="font-size:0.75rem;font-weight:400;color:#6b7a8d">${label}</span></div>
+        <div class="reading-meta">${formatDate(r.date, r.time)}${pulseStr}${anxStr}${medsStr}</div>
+        ${r.notes ? `<div class="reading-note">${r.notes}</div>` : ''}
+      </div>
+      <button class="reading-delete" onclick="deleteReading(${i})" title="Delete">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function renderChart() {
+  const labels = readings.map(r => {
+    const d = new Date(r.date + 'T' + r.time);
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ' ' + r.time;
+  });
+  const sysData = readings.map(r => r.sys);
+  const diaData = readings.map(r => r.dia);
+
+  if (chart) chart.destroy();
+  const ctx = document.getElementById('bpChart').getContext('2d');
+
+  if (!readings.length) {
+    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    return;
+  }
+
+  chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Systolic',
+          data: sysData,
+          borderColor: '#2c5f9e',
+          backgroundColor: 'rgba(44,95,158,0.08)',
+          tension: 0.3,
+          pointBackgroundColor: sysData.map(v => getCategoryColor(v)),
+          pointRadius: 5,
+          fill: true,
+        },
+        {
+          label: 'Diastolic',
+          data: diaData,
+          borderColor: '#94a3b8',
+          backgroundColor: 'transparent',
+          tension: 0.3,
+          pointRadius: 4,
+          borderDash: [4,3],
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'top', labels: { font: { size: 12 }, boxWidth: 12 } },
+        tooltip: {
+          callbacks: {
+            afterLabel: (ctx) => {
+              const r = readings[ctx.dataIndex];
+              const bits = [];
+              if (r.anxiety) bits.push(`Anxiety: ${r.anxiety}`);
+              if (r.meds === 'yes') bits.push('Valium taken');
+              if (r.notes) bits.push(r.notes);
+              return bits;
+            }
+          }
+        }
+      },
+      scales: {
+        y: {
+          min: 60,
+          grid: { color: '#f1f5f9' },
+          ticks: { font: { size: 11 } }
+        },
+        x: {
+          ticks: { font: { size: 10 }, maxRotation: 45 }
+        }
+      }
+    }
+  });
+}
+
+function exportCSV() {
+  if (!readings.length) { alert('No readings to export yet.'); return; }
+  const rows = [['Date','Time','Systolic','Diastolic','Pulse','Category','Anxiety','Valium Taken','Notes']];
+  readings.forEach(r => {
+    rows.push([r.date, r.time, r.sys, r.dia, r.pulse || '', getCategoryLabel(r.sys), r.anxiety || '', r.meds === 'yes' ? 'Yes' : 'No', r.notes || '']);
+  });
+  const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = 'bp_readings.csv';
+  a.click();
+}
+
+// set default date/time to now
+const now = new Date();
+document.getElementById('date').value = now.toISOString().slice(0,10);
+document.getElementById('time').value = now.toTimeString().slice(0,5);
+
+render();
+</script>
+</body>
+</html>
